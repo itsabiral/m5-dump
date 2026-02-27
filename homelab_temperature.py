@@ -13,9 +13,6 @@ CITY = "Denton, TX"
 SERVER_IP = "192.168.0.197:8000"
 REFRESH_SECONDS = 10 * 60  # 10 minutes
 
-TIMEZONE_NAME = "CST Chicago"
-UTC_OFFSET_HOURS = -6  
-
 try:
     WEATHER_FONT = lcd.FONT_DejaVu18
     SERVER_FONT = lcd.FONT_DejaVu18
@@ -27,11 +24,11 @@ setScreenColor(0x000000)
 lcd.setBrightness(60)
 
 SCREEN_W, SCREEN_H = lcd.winsize()
-WEATHER_HEIGHT = 60
-PADDING = 8
+WEATHER_HEIGHT = 30
+PADDING = 0
 
-weather_box = M5TextBox(PADDING, 6, "", WEATHER_FONT, 0x00FFAA)
-server_box = M5TextBox(PADDING, WEATHER_HEIGHT + 8, "", SERVER_FONT, 0xFFFFFF)
+weather_box = M5TextBox(PADDING, 0, "", WEATHER_FONT, 0x00FFAA)
+server_box = M5TextBox(PADDING, WEATHER_HEIGHT, "", SERVER_FONT, 0xFFFFFF)
 
 def draw_divider():
     lcd.line(0, WEATHER_HEIGHT, SCREEN_W, WEATHER_HEIGHT, 0x444444)
@@ -75,7 +72,7 @@ def fetch_weather():
         wind = int(cw["windspeed"])
         desc = WEATHER_CODE.get(cw["weathercode"], "Weather")
 
-        return "{}\n{}°C | {} | {} km/h".format(CITY, temp, desc, wind)
+        return "{} | {}°C | {} |".format(CITY, temp, desc)
     except:
         return "{}\nWeather unavailable".format(CITY)
 
@@ -92,8 +89,6 @@ def convert_utc_to_local(updated_at):
 
         hh = int(hh)
         mm = int(mm)
-
-        hh = hh + UTC_OFFSET_HOURS
 
         if hh < 0:
             hh += 24
@@ -123,26 +118,32 @@ def fetch_servers():
         data = r.json()
         r.close()
 
-        lines = ["Servers", "-" * 16]
+        if isinstance(data, dict):
+            data = [data]
+
+        header = "Servers\n" + "-" * 16
+        server_blocks = []
 
         for item in data:
             srv = item.get("server", "?")
-            temp = item.get("temperature", "?")
+            sensors = item.get("sensors", [])
             updated = item.get("updated_at", "")
 
-            try:
-                temp_f = float(temp)
-                temp_str = "{:.1f}C".format(temp_f)
-            except:
-                temp_str = str(temp) + "C"
+            parts = []
+            for s in sensors:
+                sensor_name = s.get("sensor", "?")
+                raw_temp = s.get("temperature", "?")
+                parts.append("{} | {} |".format(sensor_name, raw_temp))
 
+            temp_str = " ".join(parts) if parts else "No sensors"
             time_str = convert_utc_to_local(updated)
 
-            lines.append("{}  {}  {}".format(srv, temp_str, time_str))
+            block = "{}\n{}\n{}".format(srv, temp_str, time_str)
+            server_blocks.append(block)
 
-        return "\n".join(lines)
+        return header + "\n\n" + "\n\n".join(server_blocks)
 
-    except:
+    except Exception:
         return "Servers\nUnavailable"
 
 
